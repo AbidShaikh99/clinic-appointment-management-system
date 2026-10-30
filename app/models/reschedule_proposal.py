@@ -25,10 +25,10 @@ class RescheduleProposal(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    leave_id: Mapped[int] = mapped_column(
-        ForeignKey("doctor_leaves.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+    leave_id: Mapped[int | None] = mapped_column(
+    ForeignKey("doctor_leaves.id", ondelete="SET NULL"),
+    nullable=True,
+    index=True,
     )
 
     appointment_id: Mapped[int] = mapped_column(

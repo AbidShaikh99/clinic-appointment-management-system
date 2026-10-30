@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
@@ -78,13 +78,15 @@ class DoctorLeaveRepository:
     ) -> list[Doctor]:
         statement = (
             select(Doctor)
-            .where(
-                Doctor.is_active.is_(True),
-                Doctor.specialization == specialization,
-            )
+            .where(Doctor.is_active.is_(True))
             .order_by(Doctor.id)
         )
-        return list(db.scalars(statement).all())
+        return [
+            doctor
+            for doctor in db.scalars(statement).all()
+            if doctor.specialization.strip().casefold()
+            == specialization.strip().casefold()
+        ]
 
     @staticmethod
     def get_schedules_for_weekday(
@@ -145,6 +147,23 @@ class DoctorLeaveRepository:
             db.scalars(doctor_conflict).first() is not None
             or db.scalars(patient_conflict).first() is not None
         )
+
+    @staticmethod
+    def count_daily_appointments(
+        db: Session,
+        doctor_id: int,
+        day_start: datetime,
+        next_day_start: datetime,
+        exclude_appointment_id: int,
+    ) -> int:
+        statement = select(func.count(Appointment.id)).where(
+            Appointment.doctor_id == doctor_id,
+            Appointment.status.in_(ACTIVE_APPOINTMENT_STATUSES),
+            Appointment.start_at >= day_start,
+            Appointment.start_at < next_day_start,
+            Appointment.id != exclude_appointment_id,
+        )
+        return db.scalar(statement) or 0
 
     @staticmethod
     def save_proposal(

@@ -7,8 +7,10 @@ from app.utils.response import error_response
 from app.routes import schedule_routes
 from app.routes import doctor_leave_routes
 from app.routes import patient_routes
-
-
+from app.routes import appointment_routes
+from app.routes import waiting_list_routes
+from app.routes import queue_routes
+from app.routes import report_routes
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -41,6 +43,10 @@ app.include_router(doctor_routes.router, prefix="/api/v1")
 app.include_router(schedule_routes.router, prefix="/api/v1")
 app.include_router(doctor_leave_routes.router, prefix="/api/v1")
 app.include_router(patient_routes.router, prefix="/api/v1")
+app.include_router(appointment_routes.router, prefix="/api/v1")
+app.include_router(waiting_list_routes.router, prefix="/api/v1")
+app.include_router(queue_routes.router, prefix="/api/v1")
+app.include_router(report_routes.router, prefix="/api/v1")
 
 @app.get("/health", tags=["Health"])
 def health_check():

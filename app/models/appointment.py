@@ -123,6 +123,31 @@ class Appointment(Base):
         server_default=func.now(),
     )
 
+    checked_in_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    no_show_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    consultation_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    consultation_ended_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    consultation_duration_seconds: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
     patient: Mapped["Patient"] = relationship(
         back_populates="appointments",
     )

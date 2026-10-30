@@ -1,4 +1,4 @@
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -29,24 +29,51 @@ class DoctorLeaveService:
         original_doctor,
         max_options: int = 3,
     ) -> list[dict]:
-        """
-        Find possible slots after the leave and after the original
-        appointment, using the same doctor or an active doctor with
-        the same specialization.
-        """
-        duration = appointment.end_at - appointment.start_at
+        """Find future slots with the same or another specialist doctor."""
+        scheduling_timezone = (
+            leave.start_at.tzinfo or timezone.utc
+        )
+        appointment_start = appointment.start_at
+        if appointment_start.tzinfo is None:
+            appointment_start = appointment_start.replace(
+                tzinfo=scheduling_timezone
+            )
+        appointment_end = appointment.end_at
+        if appointment_end.tzinfo is None:
+            appointment_end = appointment_end.replace(
+                tzinfo=scheduling_timezone
+            )
+        leave_end = leave.end_at
+        if leave_end.tzinfo is None:
+            leave_end = leave_end.replace(
+                tzinfo=scheduling_timezone
+            )
 
-        search_start = max(leave.end_at, appointment.end_at)
-        search_end = search_start + timedelta(days=30)
+        now = datetime.now(scheduling_timezone)
+        search_end = max(leave_end, appointment_end) + timedelta(days=30)
 
         doctors = DoctorLeaveRepository.get_eligible_doctors(
             db,
             original_doctor.specialization,
         )
+        doctors.sort(key=lambda candidate: candidate.id != original_doctor.id)
 
-        alternatives = []
+        alternatives_by_doctor = []
 
         for candidate_doctor in doctors:
+            doctor_alternatives = []
+            duration = appointment_end - appointment_start
+            search_start = max(
+                appointment_start,
+                now,
+            )
+            if candidate_doctor.id == original_doctor.id:
+                search_start = max(
+                    search_start,
+                    leave_end,
+                    appointment_end,
+                )
+
             day = search_start.date()
 
             while day <= search_end.date():
@@ -62,12 +89,12 @@ class DoctorLeaveService:
                     period_start = datetime.combine(
                         day,
                         schedule.start_time,
-                        tzinfo=search_start.tzinfo,
+                        tzinfo=scheduling_timezone,
                     )
                     period_end = datetime.combine(
                         day,
                         schedule.end_time,
-                        tzinfo=search_start.tzinfo,
+                        tzinfo=scheduling_timezone,
                     )
 
                     candidate_start = max(period_start, search_start)
@@ -113,8 +140,29 @@ class DoctorLeaveService:
                             )
                         )
 
-                        if not has_leave and not has_conflict:
-                            alternatives.append(
+                        day_start = datetime.combine(
+                            day,
+                            time.min,
+                            tzinfo=scheduling_timezone,
+                        )
+                        next_day_start = day_start + timedelta(days=1)
+                        has_capacity = (
+                            DoctorLeaveRepository.count_daily_appointments(
+                                db,
+                                candidate_doctor.id,
+                                day_start,
+                                next_day_start,
+                                exclude_appointment_id=appointment.id,
+                            )
+                            < candidate_doctor.max_daily_appointments
+                        )
+
+                        if (
+                            not has_leave
+                            and not has_conflict
+                            and has_capacity
+                        ):
+                            doctor_alternatives.append(
                                 {
                                     "proposed_doctor_id": candidate_doctor.id,
                                     "proposed_doctor_name": candidate_doctor.name,
@@ -123,12 +171,43 @@ class DoctorLeaveService:
                                 }
                             )
 
-                            if len(alternatives) >= max_options:
-                                return alternatives
+                            if len(doctor_alternatives) >= max_options:
+                                break
 
                         candidate_start += timedelta(minutes=15)
 
+                    if len(doctor_alternatives) >= max_options:
+                        break
+
+                if len(doctor_alternatives) >= max_options:
+                    break
+
                 day += timedelta(days=1)
+
+            if doctor_alternatives:
+                alternatives_by_doctor.append(doctor_alternatives)
+
+        alternatives = [
+            doctor_alternatives[0]
+            for doctor_alternatives in alternatives_by_doctor
+        ][:max_options]
+
+        option_index = 1
+        while len(alternatives) < max_options:
+            added_option = False
+            for doctor_alternatives in alternatives_by_doctor:
+                if option_index < len(doctor_alternatives):
+                    alternatives.append(
+                        doctor_alternatives[option_index]
+                    )
+                    added_option = True
+                    if len(alternatives) >= max_options:
+                        break
+
+            if not added_option:
+                break
+
+            option_index += 1
 
         return alternatives
 

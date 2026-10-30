@@ -24,3 +24,16 @@ class AppointmentStatus(str, Enum):
     CANCELLED = "CANCELLED"
     NO_SHOW = "NO_SHOW"
     RESCHEDULE_PENDING = "RESCHEDULE_PENDING"
+
+
+class WaitingListStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    OFFERED = "OFFERED"
+    FULFILLED = "FULFILLED"
+    CANCELLED = "CANCELLED"
+
+
+class WaitingListPriority(str, Enum):
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    URGENT = "URGENT"

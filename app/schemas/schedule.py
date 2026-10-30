@@ -1,6 +1,12 @@
 from datetime import time
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 
 class SchedulePeriodCreate(BaseModel):
@@ -8,6 +14,20 @@ class SchedulePeriodCreate(BaseModel):
     end_time: time
     break_start: time | None = None
     break_end: time | None = None
+
+    @field_validator(
+        "start_time",
+        "end_time",
+        "break_start",
+        "break_end",
+    )
+    @classmethod
+    def validate_local_time(cls, value: time | None) -> time | None:
+        if value is not None and value.tzinfo is not None:
+            raise ValueError(
+                "Schedule times must be local times without a timezone."
+            )
+        return value
 
     @model_validator(mode="after")
     def validate_period(self):

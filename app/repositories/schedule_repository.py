@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -5,6 +7,15 @@ from app.models.appointment import Appointment
 from app.models.doctor import Doctor
 from app.models.enums import AppointmentStatus
 from app.models.schedule import DoctorSchedule
+
+
+ACTIVE_APPOINTMENT_STATUSES = [
+    AppointmentStatus.REQUESTED,
+    AppointmentStatus.CONFIRMED,
+    AppointmentStatus.CHECKED_IN,
+    AppointmentStatus.IN_PROGRESS,
+    AppointmentStatus.RESCHEDULE_PENDING,
+]
 
 
 class ScheduleRepository:
@@ -45,17 +56,13 @@ class ScheduleRepository:
     ) -> list[Appointment]:
         statement = select(Appointment).where(
             Appointment.doctor_id == doctor_id,
-            Appointment.status == AppointmentStatus.CONFIRMED,
+            Appointment.status.in_(ACTIVE_APPOINTMENT_STATUSES),
+            Appointment.start_at >= datetime.now(timezone.utc),
         )
 
-        appointments = list(db.scalars(statement).all())
-
-        # Match the recurring weekday against each appointment's
-        # stored datetime. Assumes stored datetimes use the clinic's
-        # intended scheduling timezone.
         return [
             appointment
-            for appointment in appointments
+            for appointment in db.scalars(statement).all()
             if appointment.start_at.weekday() == weekday
         ]
 
